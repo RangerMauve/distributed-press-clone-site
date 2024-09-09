@@ -16,9 +16,41 @@ site=$1
 # set the variable destination to the site
 destination="$site" 
 
+dp_endpoint="${DP_SERVER_URL}/v1/sites/${destination}"
+
 # if there is a second cli flag, set destination to it
 if [ $# -gt 1 ]; then  
     destination="$2" 
+fi
+
+
+echo "Checking to see if the site has been created"
+# Check if site is already registered
+curl \
+  -X GET \
+  --fail \
+  -s \
+  -H "Authorization: Bearer ${DP_AUTH_TOKEN}" \
+  $dp_endpoint > /dev/null
+if [ $? -eq 0 ]; then
+  echo "Site already created" 
+else
+  echo "Site not created: Initializing site"
+
+  # Your code to create the site goes here
+  create_data="{\"public\": true, \"domain\":\"${destination}\",\"protocols\":{\"http\": true,\"hyper\": true,\"ipfs\": true}}"
+
+  curl \
+    -X POST \
+    --fail \
+    -H "Authorization: Bearer ${DP_AUTH_TOKEN}" \
+    -H "content-type: application/json" \
+    --data "$create_data" \
+    "${DP_SERVER_URL}/v1/sites"
+    if [[ $? -ne 0 ]]; then
+      echo "Unable to create site." >&2
+      exit 2
+    fi
 fi
 
 # make a folder for #destination
@@ -36,40 +68,12 @@ wget2 \
   --continue \
   --no-host-directories \
   --directory-prefix=$destination \
-  "https://${site}"
+  "https://$site"
 
 # make a tarball out of the destination folder
 tar -cf "${destination}.tar.gz" "$destination/"
 
-dp_endpoint="${DP_SERVER_URL}/v1/sites/${destination}"
-
-echo "Checking to see if the site has been created"
-
-curl \
-  -X GET \
-  --fail \
-  -H "Authorization: Bearer ${DP_AUTH_TOKEN}" \
-  $dp_endpoint
-if [ $? -eq 0 ]; then
-  echo "Site already created" 
-else
-  echo "Site not created: Initializing site"
-
-  create_data="{\"public\": true, \"domain\":\"${destination}\",\"protocols\":{\"http\": true,\"hyper\": true,\"ipfs\": true}}"
-
-  curl \
-    -X POST \
-    --fail \
-    -H "Authorization: Bearer ${DP_AUTH_TOKEN}" \
-    -H "content-type: application/json" \
-    --data $create_data \
-    $dp_endpoint
-    if [ $? -eq 0 ]; then
-      echo "Unable to create site." >&2
-      exit 2
-    fi
-fi
-
+rm -rf "./${destination}/"
 
 echo "Uploading to ${dp_endpoint}"
 
@@ -80,5 +84,11 @@ curl -X PUT \
   -F "upload=@${destination}.tar.gz" \
   $dp_endpoint
 
-# TODO: Cleanup
-rm -rf "./${destination}*"
+rm -rf "./${destination}.tar.gz"
+
+echo "Site updated:"
+curl \
+  -X GET \
+  --fail \
+  -H "Authorization: Bearer ${DP_AUTH_TOKEN}" \
+  $dp_endpoint | jq ".links"
