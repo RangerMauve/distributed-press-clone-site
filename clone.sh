@@ -71,7 +71,7 @@ wget2 \
   "https://$site"
 
 # make a tarball out of the destination folder
-tar -cf "${destination}.tar.gz" "$destination/"
+tar -cf "${destination}.tar.gz" -C "$destination/" .
 
 rm -rf "./${destination}/"
 
